@@ -1,0 +1,24 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/PackRegistry.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n\n/// @title PackRegistry — Remixly content packs on BOT Chain\n/// @notice Records a published content pack (title, hashes, IPFS cid, format count) and which formats went live.\n///         No tokens, no payments, no owner. Only hashes, a short title, a cid and the live post URLs go on-chain.\ncontract PackRegistry {\n    struct Pack {\n        address owner;\n        string title;\n        bytes32 sourceHash; // keccak256 of the source text (the text itself never leaves the browser)\n        bytes32 packHash;   // keccak256 of the exact pack JSON pinned to IPFS\n        string cid;         // IPFS cid of the pack JSON\n        uint8 formats;      // number of formats in the pack\n        uint8 posted;       // formats marked live (each counted once)\n        uint64 at;          // publish time\n    }\n\n    uint256 public constant MAX_TITLE = 60;\n    uint256 public constant MAX_FORMATS = 10;\n    uint256 public constant MAX_URL = 200;\n    uint256 public constant MAX_CID = 100;\n\n    Pack[] public packs;\n    mapping(address => uint256[]) private packsOf;\n    mapping(uint256 => mapping(uint8 => bool)) public isPosted;\n    /// @notice keccak256 of the latest live URL recorded for a format (the URL itself is in the Posted event).\n    mapping(uint256 => mapping(uint8 => bytes32)) public postedUrlHash;\n    /// @notice Total formats marked live across all packs (each pack/format counted once).\n    uint256 public postsLive;\n\n    event Published(uint256 indexed id, address indexed owner);\n    event Posted(uint256 indexed id, uint8 formatIndex, string url);\n\n    error EmptyTitle();\n    error TitleTooLong();\n    error BadFormats();\n    error CidTooLong();\n    error NoSuchPack();\n    error NotOwner();\n    error BadFormatIndex();\n    error BadUrl();\n\n    function publish(string calldata title, bytes32 sourceHash, bytes32 packHash, string calldata cid, uint8 formats)\n        external\n        returns (uint256 id)\n    {\n        uint256 t = bytes(title).length;\n        if (t == 0) revert EmptyTitle();\n        if (t > MAX_TITLE) revert TitleTooLong();\n        if (formats == 0 || formats > MAX_FORMATS) revert BadFormats();\n        if (bytes(cid).length > MAX_CID) revert CidTooLong();\n\n        id = packs.length;\n        packs.push(Pack(msg.sender, title, sourceHash, packHash, cid, formats, 0, uint64(block.timestamp)));\n        packsOf[msg.sender].push(id);\n        emit Published(id, msg.sender);\n    }\n\n    /// @notice Mark one format of your pack as posted, with its live link. Calling again replaces the link\n    ///         (a new event is emitted) but the format is only counted once.\n    function markPosted(uint256 id, uint8 formatIndex, string calldata url) external {\n        if (id >= packs.length) revert NoSuchPack();\n        Pack storage p = packs[id];\n        if (p.owner != msg.sender) revert NotOwner();\n        if (formatIndex >= p.formats) revert BadFormatIndex();\n        uint256 u = bytes(url).length;\n        if (u == 0 || u > MAX_URL) revert BadUrl();\n\n        if (!isPosted[id][formatIndex]) {\n            isPosted[id][formatIndex] = true;\n            p.posted += 1;\n            postsLive += 1;\n        }\n        postedUrlHash[id][formatIndex] = keccak256(bytes(url));\n        emit Posted(id, formatIndex, url);\n    }\n\n    // ---------- views ----------\n    function getPack(uint256 id) external view returns (Pack memory) {\n        if (id >= packs.length) revert NoSuchPack();\n        return packs[id];\n    }\n\n    /// @notice Packs [from, from + count), clipped to the end of the list.\n    function getPacks(uint256 from, uint256 count) external view returns (Pack[] memory out) {\n        uint256 n = packs.length;\n        if (from >= n) return new Pack[](0);\n        uint256 end = from + count > n ? n : from + count;\n        out = new Pack[](end - from);\n        for (uint256 i = from; i < end; i++) out[i - from] = packs[i];\n    }\n\n    function packsBy(address owner) external view returns (uint256[] memory) {\n        return packsOf[owner];\n    }\n\n    function total() external view returns (uint256) {\n        return packs.length;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 200
+    },
+    "evmVersion": "paris",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

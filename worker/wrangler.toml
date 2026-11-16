@@ -1,0 +1,29 @@
+name = "remixly-worker"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare Workers AI
+[ai]
+binding = "AI"
+
+[vars]
+# Comma-separated list of sites allowed to call this Worker (localhost is always allowed for dev)
+ALLOWED_ORIGINS = "https://YOUR_DOMAIN,https://YOUR_GITHUB_USER.github.io"
+# AI provider: "workers-ai" (free daily allowance, Llama 3.3 70B on Cloudflare) or "anthropic" (Claude, needs API credits)
+PROVIDER = "workers-ai"
+# Claude model (used when PROVIDER = "anthropic")
+MODEL = "claude-opus-5-5"
+
+# Daily per-IP limit (AI routes). Shared "RATE" namespace; Remixly keys are prefixed "remix:".
+[[kv_namespaces]]
+binding = "RATE"
+id = "5f8367631f354434b90fe596f74c7ffb"
+
+# Secrets (never commit):
+#   npx wrangler secret put ANTHROPIC_API_KEY   (only for PROVIDER = "anthropic")
+#   npx wrangler secret put PINATA_JWT          (for /upload → IPFS)
+
+# Source texts and packs are never logged: observability stays off.
+[observability]
+enabled = false
